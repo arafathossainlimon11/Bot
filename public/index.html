@@ -1,110 +1,156 @@
-import fetch from 'node-fetch';
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Reaction Manager</title>
+  <style>
+    * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background: #0f172a; color: #f8fafc; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 20px; }
+    .card { background: #1e293b; border: 1px solid #334155; padding: 25px; border-radius: 12px; width: 100%; max-width: 450px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5); }
+    h2 { margin-top: 0; color: #38bdf8; font-size: 22px; text-align: center; }
+    label { font-size: 13px; color: #94a3b8; margin-top: 10px; display: block; }
+    input { width: 100%; padding: 12px; margin: 6px 0 14px; border-radius: 6px; border: 1px solid #334155; background: #0f172a; color: #fff; font-size: 14px; }
+    input:focus { outline: none; border-color: #38bdf8; }
+    button { width: 100%; padding: 12px; background: #2563eb; color: white; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 15px; }
+    button:hover { background: #1d4ed8; }
+    .btn-sync { background: #059669; margin-top: 15px; }
+    .btn-sync:hover { background: #047857; }
+    .hidden { display: none; }
+    .status { margin-top: 15px; font-size: 13px; text-align: center; color: #38bdf8; word-break: break-all; }
+    .bot-list-box { background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 10px; max-height: 180px; overflow-y: auto; margin-top: 10px; }
+    .bot-item { display: flex; justify-content: space-between; align-items: center; padding: 8px; border-bottom: 1px solid #1e293b; font-size: 13px; }
+    .bot-item:last-child { border-bottom: none; }
+    .bot-name { color: #4ade80; font-weight: bold; }
+    .bot-token { color: #64748b; font-size: 11px; }
+  </style>
+</head>
+<body>
 
-// ১০টি বটের স্থায়ী তালিকা (Vercel রিস্টার্ট হলেও এগুলো মুছে যাবে না)
-const defaultBots = [
-  { username: "@Tanvir_bot", token: "8407868760:AAG6ZophC7dDESbd5npnnJ8n5s2zVPpMAc8" },
-  { username: "@Aayan_bot", token: "8678868430:AAEWPy9Zo4l17RYhH3LSWALKOPEZiLyIGec" },
-  { username: "@Rahat_bot", token: "8954980480:AAHjlBwp-b_SdyZ23C-nLfqtZrKhs_68O6c" },
-  { username: "@Sumiya_bot", token: "8896588682:AAHgovbBosG3bB1ZPU55-Hs545VfjuIU1Ok" },
-  { username: "@Sneha_bot", token: "8975503853:AAEkJlbeAKsdQzv_5JxAy3BEj8lI3bGSkr8" },
-  { username: "@Meera_bot", token: "8985833367:AAFaROblnxP-ER7FZxrdqJFRqh9jasSpyhQ" },
-  { username: "@Tamnna_bot", token: "8818144137:AAHVJ93ueND1MlkXoISO2cSM7xhOUvgwuE4" },
-  { username: "@Priya_bot", token: "8869262106:AAFA_dVBeWv9K6Oc1Hqn8k4p-MocsuF81Bw" },
-  { username: "@Rohan_bot", token: "8712311804:AAE7fm-vGvyFUGL_xjG7YdqgeOjWw8J_Cvk" },
-  { username: "@Arafat_bot", token: "8950146736:AAEUAKAQHy3faihON8MHq-F3wUcrNO6C7uE" }
-];
+  <div class="card" id="loginCard">
+    <h2>Admin Access</h2>
+    <label>Password</label>
+    <input type="password" id="passInput" placeholder="Enter Admin Password">
+    <button onclick="login()">Login</button>
+    <div class="status" id="loginStatus"></div>
+  </div>
 
-global.botList = (global.botList && global.botList.length > 0) ? global.botList : defaultBots;
+  <div class="card hidden" id="dashboardCard">
+    <h2>Bot Reaction Panel</h2>
+    
+    <label>Bot Username</label>
+    <input type="text" id="botUsername" placeholder="@username">
 
-export default async function handler(req, res) {
-  // ১. চ্যানেলে নতুন পোস্ট আসলে অটো-রিয়াকশন
-  if (req.method === 'POST' && req.body?.channel_post) {
-    const post = req.body.channel_post;
-    const channelId = post.chat.id;
-    const messageId = post.message_id;
+    <label>Bot Token</label>
+    <input type="text" id="botToken" placeholder="123456789:ABCdef...">
 
-    const emojis = ['👍', '❤️', '🔥', '🎉', '🤩', '👏', '😍', '⚡', '🥰', '🚀', '💯', '✨'];
+    <button onclick="addBot()">+ Add & Activate Bot</button>
+    <button class="btn-sync" onclick="syncAll()">Sync All Bots to Channel</button>
 
-    const reactionPromises = global.botList.map((bot, index) => {
-      const emoji = emojis[index % emojis.length];
-      return fetch(`https://api.telegram.org/bot${bot.token}/setMessageReaction`, {
+    <div class="status" id="dashStatus"></div>
+
+    <h4 style="margin: 20px 0 5px; font-size: 14px; color: #cbd5e1;">
+      Active Bots (<span id="botCount">0</span>):
+    </h4>
+    <div class="bot-list-box" id="botList"></div>
+  </div>
+
+  <script>
+    let savedPass = "";
+
+    async function login() {
+      const pass = document.getElementById('passInput').value;
+      const res = await fetch('/api', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'login', password: pass })
+      });
+      const data = await res.json();
+      if (data.success) {
+        savedPass = pass;
+        document.getElementById('loginCard').classList.add('hidden');
+        document.getElementById('dashboardCard').classList.remove('hidden');
+        renderBots(data.bots);
+      } else {
+        document.getElementById('loginStatus').innerText = data.message;
+      }
+    }
+
+    async function addBot() {
+      const username = document.getElementById('botUsername').value;
+      const token = document.getElementById('botToken').value;
+
+      if (!username || !token) {
+        return alert("Enter Username and Token!");
+      }
+
+      document.getElementById('dashStatus').innerText = "Processing...";
+
+      const res = await fetch('/api', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          chat_id: channelId,
-          message_id: messageId,
-          reaction: [{ type: 'emoji', emoji: emoji }]
+          action: 'add_bot',
+          password: savedPass,
+          username: username,
+          token: token,
+          siteUrl: window.location.origin
         })
       });
-    });
 
-    await Promise.all(reactionPromises);
-    return res.status(200).json({ success: true });
-  }
-
-  // ২. এডমিন প্যানেল লগইন
-  if (req.method === 'POST' && req.body?.action === 'login') {
-    const { password } = req.body;
-    const adminPass = process.env.ADMIN_PASSWORD || 'arafat01721313101';
-
-    if (password === adminPass) {
-      return res.status(200).json({ success: true, bots: global.botList });
-    }
-    return res.status(401).json({ success: false, message: 'ভুল পাসওয়ার্ড!' });
-  }
-
-  // ৩. নতুন বট যুক্ত করার সিস্টেম
-  if (req.method === 'POST' && req.body?.action === 'add_bot') {
-    const { password, username, token, siteUrl } = req.body;
-    const adminPass = process.env.ADMIN_PASSWORD || 'arafat01721313101';
-
-    if (password !== adminPass) return res.status(401).json({ success: false, message: 'অনুমোদিত নয়' });
-
-    if (!token || !username) {
-      return res.status(400).json({ success: false, message: 'বট টোকেন ও ইউজারনেম আবশ্যক!' });
+      const data = await res.json();
+      if (data.success) {
+        document.getElementById('dashStatus').innerText = data.message;
+        document.getElementById('botUsername').value = "";
+        document.getElementById('botToken').value = "";
+        renderBots(data.bots);
+      } else {
+        document.getElementById('dashStatus').innerText = data.message || "Failed!";
+      }
     }
 
-    const cleanToken = token.trim();
-    const cleanUsername = username.trim().startsWith('@') ? username.trim() : `@${username.trim()}`;
-
-    if (!global.botList.some(b => b.token === cleanToken)) {
-      global.botList.push({ username: cleanUsername, token: cleanToken });
-    }
-
-    // নতুন বটের Webhook কানেক্ট
-    const webhookUrl = `${siteUrl}/api`;
-    await fetch(`https://api.telegram.org/bot${cleanToken}/setWebhook`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url: webhookUrl })
-    });
-
-    return res.status(200).json({
-      success: true,
-      message: `${cleanUsername} সফলভাবে যুক্ত করা হয়েছে!`,
-      bots: global.botList
-    });
-  }
-
-  // ৪. সব বট এক ক্লিকে কানেক্ট করা
-  if (req.method === 'POST' && req.body?.action === 'sync_all') {
-    const { password, siteUrl } = req.body;
-    const adminPass = process.env.ADMIN_PASSWORD || 'arafat01721313101';
-
-    if (password !== adminPass) return res.status(401).json({ success: false });
-
-    const webhookUrl = `${siteUrl}/api`;
-
-    await Promise.all(global.botList.map(b =>
-      fetch(`https://api.telegram.org/bot${b.token}/setWebhook`, {
+    async function syncAll() {
+      document.getElementById('dashStatus').innerText = "Syncing with channel...";
+      const res = await fetch('/api', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: webhookUrl })
-      })
-    ));
+        body: JSON.stringify({
+          action: 'sync_all',
+          password: savedPass,
+          siteUrl: window.location.origin
+        })
+      });
 
-    return res.status(200).json({ success: true, message: 'সবগুলো বট চ্যানেলের সাথে কানেক্ট করা হয়েছে!' });
-  }
+      const data = await res.json();
+      if (data.success) {
+        document.getElementById('dashStatus').innerText = "All bots synced successfully!";
+      }
+    }
 
-  return res.status(200).send('Bot Engine Live');
-}
+    function renderBots(bots) {
+      document.getElementById('botCount').innerText = bots ? bots.length : 0;
+      const container = document.getElementById('botList');
+      container.innerHTML = "";
+      
+      if (!bots || bots.length === 0) {
+        container.innerHTML = "<div style='color: #64748b; font-size: 12px; text-align: center; padding: 10px;'>No bots found.</div>";
+        return;
+      }
+
+      bots.forEach(b => {
+        const item = document.createElement('div');
+        item.className = 'bot-item';
+        const maskedToken = b.token ? b.token.substring(0, 8) + "..." + b.token.substring(b.token.length - 4) : "";
+        item.innerHTML = `
+          <div>
+            <div class="bot-name">${b.username}</div>
+            <div class="bot-token">${maskedToken}</div>
+          </div>
+          <span style="color: #38bdf8; font-size: 11px;">Active</span>
+        `;
+        container.appendChild(item);
+      });
+    }
+  </script>
+</body>
+                                             </html>
